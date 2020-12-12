@@ -6,24 +6,44 @@ import string
 import urllib.parse
 import kasaSimDevice
 import kasaSimBulb
+import kasaSimPlug
 
 SOCKET_HOST = '127.0.0.1'
 SOCKET_PORT = 8080
 
-device = kasaSimBulb.kasaSimBulb(
-                'http://' + SOCKET_HOST + ':' + str(SOCKET_PORT),
+url = 'http://' + SOCKET_HOST + ':' + str(SOCKET_PORT)
+
+devices = list()
+devices.append(kasaSimBulb.kasaSimBulb(
+                url,
                 "B15013761762C414871EBA887DE3B424E9C6FD4D", # ('%040x' % random.randrange(16**40)).upper()
                 "Smart Wi-Fi LED Bulb with Color Changing",
                 "1.0",
                 "Bulb1",
                 "42C7C7F55EB2", # ('%012x' % random.randrange(16**12)).upper()
                 "E85DA6B8E44E2709840FE1DC781CA3A9", # ('%032x' % random.randrange(16**32)).upper()
-                "LB130(EU)",
-                "FC0C56395DFC9C14C3367DC8F4F9EA59" # ('%032x' % random.randrange(16**32)).upper()
-                )
-
-devices = list()
-devices.append(device)
+                "LB130(EU)"
+                ))
+devices.append(kasaSimPlug.kasaSimPlug(
+                url,
+                "F7696A0ED3748B4DA30A1A33C2E9F6ADF973A2B2", # ('%040x' % random.randrange(16**40)).upper()
+                "Smart Wi-Fi Plug With Energy Monitoring",
+                "2.0",
+                "Plug1",
+                "B88CD4B81A27", # ('%012x' % random.randrange(16**12)).upper()
+                "406AB3CCA8E15675A1512CDAB2C7FD66", # ('%032x' % random.randrange(16**32)).upper()
+                "HS110(EU)"
+                ))
+devices.append(kasaSimBulb.kasaSimBulb(
+                url,
+                "95C6670C9A39613CCAA9B7F7C9BD12EFE8DD53C9", # ('%040x' % random.randrange(16**40)).upper()
+                "Smart Wi-Fi LED Bulb with Tunable White Light",
+                "1.0",
+                "Bulb1",
+                "B7056B4F2085", # ('%012x' % random.randrange(16**12)).upper()
+                "F9390828D7591FBCD03DA8FFB60AF5B8", # ('%032x' % random.randrange(16**32)).upper()
+                "LB120(EU)"
+                ))
 
 @cherrypy.expose
 class KasaSim(object):
@@ -40,7 +60,10 @@ class KasaSim(object):
         'login': {
             'params':['appType','cloudPassword','cloudUserName','terminalUUID']
         },
-        'getDeviceList': {}
+        'getDeviceList': {},
+        'passthrough': {
+            'params':['deviceId',"requestData"]
+        }
     }
 
     REGTIME_FORMAT = '%Y-%m-%d %H:%M:%S'
@@ -117,6 +140,11 @@ class KasaSim(object):
         deviceList = list()
         for device in devices:
             deviceList.append(device.getDeviceList())
+        return self.returnResponse(0,{"deviceList":deviceList})
+
+    def meth_passthrough(self,deviceId,requestData):
+        responseData = dict()
+        requestData = json.loads(requestData)
         return self.returnResponse(0,{"deviceList":deviceList})
 
 

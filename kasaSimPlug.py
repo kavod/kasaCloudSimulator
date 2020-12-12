@@ -1,9 +1,9 @@
 import kasaSimDevice
 
-DEVICE_TYPE = 'IOT.SMARTBULB'
-FW_VER = "1.8.11 Build 191113 Rel.105336"
-HW_ID = "111E35908497A05512E259BB76801E10"
+DEVICE_TYPE = 'IOT.SMARTPLUGSWITCH'
+FW_VER = "1.5.4 Build 180815 Rel.121440"
+HW_ID = "044A516EE63C875F9458DA25C2CCC5A0"
 
-class kasaSimBulb(kasaSimDevice.kasaSimDevice):
+class kasaSimPlug(kasaSimDevice.kasaSimDevice):
     def __init__(self,appServerurl,deviceId,deviceName,deviceHwVer,alias,deviceMac,oemId,deviceModel):
         super().__init__(DEVICE_TYPE,FW_VER,appServerurl,deviceId,deviceName,deviceHwVer,alias,deviceMac,oemId,deviceModel,HW_ID)
