@@ -17,8 +17,8 @@ class kasaSimBulb(kasaSimDevice.kasaSimDevice):
     IS_VARIABLE_COLOR_TEMP = 0
     COLOR_MIN = 2700
     COLOR_MAX = 2700
-    def __init__(self,appServerurl,deviceId,deviceName,deviceHwVer,alias,deviceMac,oemId,deviceModel):
-        super().__init__(DEVICE_TYPE,FW_VER,appServerurl,deviceId,deviceName,deviceHwVer,alias,deviceMac,oemId,deviceModel,HW_ID)
+    def __init__(self,appServerurl,deviceId,local_ip,deviceName,deviceHwVer,alias,deviceMac,oemId,deviceModel):
+        super().__init__(DEVICE_TYPE,FW_VER,appServerurl,deviceId,local_ip,deviceName,deviceHwVer,alias,deviceMac,oemId,deviceModel,HW_ID)
         self.dev_state = DEV_STATE
         self.is_factory = IS_FACTORY
         self.disco_ver = DISCO_VER

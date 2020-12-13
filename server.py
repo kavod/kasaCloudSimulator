@@ -1,3 +1,5 @@
+import kasa
+import asyncio
 import cherrypy
 import json
 import random
@@ -18,6 +20,7 @@ devices = list()
 devices.append(kasaSimBulb.kasaSimBulb(
                 url,
                 "B15013761762C414871EBA887DE3B424E9C6FD4D", # ('%040x' % random.randrange(16**40)).upper()
+                "192.168.0.31",
                 "Smart Wi-Fi LED Bulb with Color Changing",
                 "1.0",
                 "Bulb1",
@@ -28,6 +31,7 @@ devices.append(kasaSimBulb.kasaSimBulb(
 devices.append(kasaSimPlug.kasaSimPlug(
                 url,
                 "F7696A0ED3748B4DA30A1A33C2E9F6ADF973A2B2", # ('%040x' % random.randrange(16**40)).upper()
+                "192.168.0.54",
                 "Smart Wi-Fi Plug With Energy Monitoring",
                 "2.0",
                 "Plug1",
@@ -38,6 +42,7 @@ devices.append(kasaSimPlug.kasaSimPlug(
 devices.append(kasaSimLB120EU.kasaSimLB120EU(
                 url,
                 "95C6670C9A39613CCAA9B7F7C9BD12EFE8DD53C9", # ('%040x' % random.randrange(16**40)).upper()
+                "192.168.0.21",
                 "Bulb1",
                 "B7056B4F2085", # ('%012x' % random.randrange(16**12)).upper()
                 "F9390828D7591FBCD03DA8FFB60AF5B8" # ('%032x' % random.randrange(16**32)).upper()
@@ -163,17 +168,18 @@ class KasaSim(object):
             requestData_dict = json.loads(requestData)
         except:
             return self.returnError(-10100)
-        for module, members in requestData_dict.items():
-            if module not in self.MODULES:
-                responseData[module] = {"err_code":-1,"err_msg":"module not support"}
-            else:
-                responseData[module] = dict()
-                for member, values in members.items():
-                    if member not in self.MODULES[module]:
-                        responseData[module][member] = {"err_code":-2,"err_msg":"member not support"}
-                    else:
-                        responseData[module][member] = getattr(device, member)(values)
-        return self.returnResponse(0,{"responseData":json.dumps(responseData)})
+        responseData = device.passthrough(requestData)
+        # for module, members in requestData_dict.items():
+        #     if module not in self.MODULES:
+        #         responseData[module] = {"err_code":-1,"err_msg":"module not support"}
+        #     else:
+        #         responseData[module] = dict()
+        #         for member, values in members.items():
+        #             if member not in self.MODULES[module]:
+        #                 responseData[module][member] = {"err_code":-2,"err_msg":"member not support"}
+        #             else:
+        #                 responseData[module][member] = getattr(device, member)(values)
+        return self.returnResponse(0,{"responseData":json.dumps(responseData,separators=(',', ':'))})
 
 
     def returnResponse(self,error_code,result={},args=""):
