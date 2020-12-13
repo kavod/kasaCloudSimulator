@@ -7,6 +7,7 @@ import urllib.parse
 import kasaSimDevice
 import kasaSimBulb
 import kasaSimPlug
+import kasaSimLB120EU
 
 SOCKET_HOST = '127.0.0.1'
 SOCKET_PORT = 8080
@@ -34,24 +35,24 @@ devices.append(kasaSimPlug.kasaSimPlug(
                 "406AB3CCA8E15675A1512CDAB2C7FD66", # ('%032x' % random.randrange(16**32)).upper()
                 "HS110(EU)"
                 ))
-devices.append(kasaSimBulb.kasaSimBulb(
+devices.append(kasaSimLB120EU.kasaSimLB120EU(
                 url,
                 "95C6670C9A39613CCAA9B7F7C9BD12EFE8DD53C9", # ('%040x' % random.randrange(16**40)).upper()
-                "Smart Wi-Fi LED Bulb with Tunable White Light",
-                "1.0",
                 "Bulb1",
                 "B7056B4F2085", # ('%012x' % random.randrange(16**12)).upper()
-                "F9390828D7591FBCD03DA8FFB60AF5B8", # ('%032x' % random.randrange(16**32)).upper()
-                "LB120(EU)"
+                "F9390828D7591FBCD03DA8FFB60AF5B8" # ('%032x' % random.randrange(16**32)).upper()
                 ))
 
 @cherrypy.expose
 class KasaSim(object):
     ERRORS = {
+    -1    : {"http_code":200, "msg":"module not supported"},
+    -2    : {"http_code":200, "msg":"member not supported"},
     -10000: {"http_code":400, "msg":"400 returned for /{} with message Bad Request"},
     -10100: {"http_code":200, "msg":"JSON format error"},
     -20103: {"http_code":200, "msg":"The method does not exist or is not available"},
     -20104: {"http_code":200, "msg":"Parameter doesn't exist"},
+    -20580: {"http_code":200, "msg":"Account is not binded to the device"},
     -20601: {"http_code":200, "msg":"Incorrect email or password"},
     -20651: {"http_code":200, "msg":"Token expired"}
     }
@@ -64,6 +65,10 @@ class KasaSim(object):
         'passthrough': {
             'params':['deviceId',"requestData"]
         }
+    }
+
+    MODULES = {
+        'system': ['get_sysinfo']
     }
 
     REGTIME_FORMAT = '%Y-%m-%d %H:%M:%S'
@@ -94,6 +99,9 @@ class KasaSim(object):
 
         if data['method'] == 'getDeviceList':
             return self.meth_getDeviceList()
+
+        if data['method'] == 'passthrough':
+            return self.meth_passthrough(data['params']['deviceId'],data['params']['requestData'])
         return self.returnError(-10000,'/'.join(args))
 
     def check_request(self,data,querystring):
@@ -143,9 +151,29 @@ class KasaSim(object):
         return self.returnResponse(0,{"deviceList":deviceList})
 
     def meth_passthrough(self,deviceId,requestData):
+        device = None
+        for dev in devices:
+            if dev.deviceId == deviceId:
+                device = dev
+        if device is None:
+            return self.returnError(-20580)
+
         responseData = dict()
-        requestData = json.loads(requestData)
-        return self.returnResponse(0,{"deviceList":deviceList})
+        try:
+            requestData_dict = json.loads(requestData)
+        except:
+            return self.returnError(-10100)
+        for module, members in requestData_dict.items():
+            if module not in self.MODULES:
+                responseData[module] = {"err_code":-1,"err_msg":"module not support"}
+            else:
+                responseData[module] = dict()
+                for member, values in members.items():
+                    if member not in self.MODULES[module]:
+                        responseData[module][member] = {"err_code":-2,"err_msg":"member not support"}
+                    else:
+                        responseData[module][member] = getattr(device, member)(values)
+        return self.returnResponse(0,{"responseData":json.dumps(responseData)})
 
 
     def returnResponse(self,error_code,result={},args=""):

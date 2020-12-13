@@ -1,6 +1,8 @@
-
+import random
 
 class kasaSimDevice(object):
+    RSSI_MIN = -90
+    RSSI_MAX = -30
     def __init__(self,deviceType,fwVer,appServerurl,deviceId,deviceName,deviceHwVer,alias,deviceMac,oemId,deviceModel,hwId):
         self.deviceType     = deviceType
         self.role           = 0
@@ -18,6 +20,7 @@ class kasaSimDevice(object):
         self.fwId           = "00000000000000000000000000000000"
         self.isSameRegion   = True
         self.status         = 1
+        self.rssi           = random.randrange(self.RSSI_MIN,self.RSSI_MAX)
 
     def getDeviceList(self):
         return {
