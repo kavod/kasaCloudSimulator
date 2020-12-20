@@ -1,29 +1,51 @@
 import kasa
 import asyncio
 import random
+import json
 
 class kasaSimDevice(object):
     RSSI_MIN = -90
     RSSI_MAX = -30
-    def __init__(self,deviceType,fwVer,appServerurl,deviceId,local_ip,deviceName,deviceHwVer,alias,deviceMac,oemId,deviceModel,hwId):
-        self.deviceType     = deviceType
+    SYSINFO_REQ = "{\"system\":{\"get_sysinfo\":{}}}"
+    def __init__(self,local_ip,appServerurl):
+        dev =asyncio.run(kasa.Discover.discover(target=local_ip))[local_ip]
+        # sysinfo = asyncio.run(kasa.TPLinkSmartHomeProtocol.query(local_ip,self.SYSINFO_REQ))
+        sysinfo_json = dev.sys_info
+        print(sysinfo_json)
+        if 'mic_type' in sysinfo_json.keys():
+            self.deviceType     = sysinfo_json['mic_type']
+        elif 'type' in sysinfo_json.keys():
+            self.deviceType     = sysinfo_json['type']
+        else:
+            self.deviceType     = ''
         self.role           = 0
-        self.fwVer          = fwVer
+        self.fwVer          = sysinfo_json['sw_ver']
         self.appServerurl   = appServerurl
         self.deviceRegion   = 'eu-west-1'
-        self.deviceId       = deviceId
+        self.deviceId       = sysinfo_json['deviceId']
         self.local_ip       = local_ip
-        self.deviceName     = deviceName
-        self.deviceHwVer    = deviceHwVer
-        self.alias          = alias
-        self.deviceMac      = deviceMac
-        self.oemId          = oemId
-        self.deviceModel    = deviceModel
-        self.hwId           = hwId
+        if 'description' in sysinfo_json.keys():
+            self.deviceName     = sysinfo_json['description']
+        elif 'dev_name' in sysinfo_json.keys():
+            self.deviceName     = sysinfo_json['dev_name']
+        else:
+            self.deviceName     = ''
+        self.deviceHwVer    = sysinfo_json['hw_ver']
+        self.alias          = sysinfo_json['alias']
+        if 'mac' in sysinfo_json.keys():
+            self.deviceMac      = sysinfo_json['mac'].replace(':','')
+        elif 'mic_mac' in sysinfo_json.keys():
+            self.deviceMac      = sysinfo_json['mic_mac'].replace(':','')
+        else:
+            self.deviceMac      = ''
+        self.oemId          = sysinfo_json['oemId']
+        self.deviceModel    = sysinfo_json['model']
+        self.hwId           = sysinfo_json['hwId']
         self.fwId           = "00000000000000000000000000000000"
         self.isSameRegion   = True
         self.status         = 1
-        self.rssi           = random.randrange(self.RSSI_MIN,self.RSSI_MAX)
+        self.rssi           = sysinfo_json['rssi']
+
 
     def passthrough(self,req):
         return asyncio.run(kasa.TPLinkSmartHomeProtocol.query(self.local_ip,req))

@@ -5,48 +5,43 @@ import json
 import random
 import datetime
 import string
-import urllib.parse
+from operator import itemgetter, attrgetter
 import kasaSimDevice
-import kasaSimBulb
-import kasaSimPlug
-import kasaSimLB120EU
 
-SOCKET_HOST = '127.0.0.1'
+USERNAME = 'niouf@niouf.fr'
+PASSWORD = 'niorf'
+COUNTRY = 'FR'
+
+ACCOUNTS = [
+    {
+        "accountId": str(random.randrange(1000000,9999999)),
+        "email": USERNAME,
+        "password": PASSWORD,
+        "country": COUNTRY,
+        "regTime": datetime.datetime.now(),
+        "uuid": ''
+    }
+]
+
+SOCKET_HOST = '192.168.0.7'
 SOCKET_PORT = 8080
 
 url = 'http://' + SOCKET_HOST + ':' + str(SOCKET_PORT)
 
 devices = list()
-devices.append(kasaSimBulb.kasaSimBulb(
-                url,
-                "B15013761762C414871EBA887DE3B424E9C6FD4D", # ('%040x' % random.randrange(16**40)).upper()
-                "192.168.0.31",
-                "Smart Wi-Fi LED Bulb with Color Changing",
-                "1.0",
-                "Bulb1",
-                "42C7C7F55EB2", # ('%012x' % random.randrange(16**12)).upper()
-                "E85DA6B8E44E2709840FE1DC781CA3A9", # ('%032x' % random.randrange(16**32)).upper()
-                "LB130(EU)"
-                ))
-devices.append(kasaSimPlug.kasaSimPlug(
-                url,
-                "F7696A0ED3748B4DA30A1A33C2E9F6ADF973A2B2", # ('%040x' % random.randrange(16**40)).upper()
-                "192.168.0.54",
-                "Smart Wi-Fi Plug With Energy Monitoring",
-                "2.0",
-                "Plug1",
-                "B88CD4B81A27", # ('%012x' % random.randrange(16**12)).upper()
-                "406AB3CCA8E15675A1512CDAB2C7FD66", # ('%032x' % random.randrange(16**32)).upper()
-                "HS110(EU)"
-                ))
-devices.append(kasaSimLB120EU.kasaSimLB120EU(
-                url,
-                "95C6670C9A39613CCAA9B7F7C9BD12EFE8DD53C9", # ('%040x' % random.randrange(16**40)).upper()
-                "192.168.0.21",
-                "Bulb1",
-                "B7056B4F2085", # ('%012x' % random.randrange(16**12)).upper()
-                "F9390828D7591FBCD03DA8FFB60AF5B8" # ('%032x' % random.randrange(16**32)).upper()
-                ))
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.205",url)) # HS300
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.200",url))
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.201",url))
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.202",url)) # HS110(US)
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.209",url)) # HS110(EU)
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.203",url)) # HS200(EU)
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.204",url)) # HS220(EU)
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.206",url)) # LB100
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.207",url)) # LB120
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.208",url)) # LB130
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.210",url)) # HS103
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.21",url)) # LB120
+devices.append(kasaSimDevice.kasaSimDevice("192.168.0.31",url)) # LB130
 
 @cherrypy.expose
 class KasaSim(object):
@@ -59,7 +54,8 @@ class KasaSim(object):
     -20104: {"http_code":200, "msg":"Parameter doesn't exist"},
     -20580: {"http_code":200, "msg":"Account is not binded to the device"},
     -20601: {"http_code":200, "msg":"Incorrect email or password"},
-    -20651: {"http_code":200, "msg":"Token expired"}
+    -20651: {"http_code":200, "msg":"Token expired"},
+    -20675: {"http_code":200, "msg": "Account login in other places"}
     }
 
     METHODS = {
@@ -72,17 +68,16 @@ class KasaSim(object):
         }
     }
 
-    MODULES = {
-        'system': ['get_sysinfo']
-    }
-
     REGTIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+    MAX_SESSIONS = 20
 
-    USERNAME = 'niouf@niouf.fr'
-    PASSWORD = 'niorf'
-    COUNTRY = 'FR'
-
+    accounts = list()
+    devices = list()
     tokens = dict()
+
+    def __init__(self,accounts,devices):
+        self.accounts = accounts
+        self.devices = devices
 
     @cherrypy.tools.json_out()
     #@cherrypy.tools.json_in()
@@ -126,38 +121,51 @@ class KasaSim(object):
         if 'token' in querystring:
             if querystring['token'] not in self.tokens:
                 return self.returnResponse(-20651)
+            if self.tokens[querystring['token']]['erased']:
+                return self.returnResponse(-20675)
         else:
             if data['method'] != 'login':
                 return self.returnResponse(-20651)
         return {"error_code":0}
 
     def meth_login(self,params):
-        if params['cloudUserName'] != self.USERNAME or params['cloudPassword'] != self.PASSWORD:
+        account = [acc for acc in self.accounts if acc['email'] == params['cloudUserName'] and acc['password'] == params['cloudPassword']]
+        if len(account)<1:
             return self.returnResponse(-20601)
-        accountId = str(random.randrange(1000000,9999999))
-        regTime = datetime.datetime.now().strftime(self.REGTIME_FORMAT)
-        countryCode = self.COUNTRY
+        account = account[0]
         token = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         token += '-'+ ''.join(random.choices(string.ascii_letters + string.digits, k=23))
+        self.tokens[token] = {
+            "accountId": account['accountId'],
+            "time": datetime.datetime.now(),
+            "erased": False
+        }
+        to_be_erased = [tok for tok in self.tokens.values() if tok['accountId'] == account['accountId'] and not tok['erased']]
+        # print(to_be_erased)
+        to_be_erased = sorted(to_be_erased, key=lambda i:i['time'],reverse=True)
+        to_be_erased = sorted(to_be_erased, key=lambda i:i['accountId'])
+        # print(to_be_erased[self.MAX_SESSIONS:])
+        for d in to_be_erased[self.MAX_SESSIONS:]:
+            d['erased'] = True
+        # print(self.tokens)
         result = {
-            "accountId": accountId,
-            "regTime": regTime,
-            "countryCode": countryCode,
-            "email": params['cloudUserName'],
+            "accountId": account['accountId'],
+            "regTime": account['regTime'].strftime(REGTIME_FORMAT),
+            "countryCode": account['country'],
+            "email": account['email'],
             "token": token
         }
-        self.tokens[token] = result
         return self.returnResponse(0,result)
 
     def meth_getDeviceList(self):
         deviceList = list()
-        for device in devices:
+        for device in self.devices:
             deviceList.append(device.getDeviceList())
         return self.returnResponse(0,{"deviceList":deviceList})
 
     def meth_passthrough(self,deviceId,requestData):
         device = None
-        for dev in devices:
+        for dev in self.devices:
             if dev.deviceId == deviceId:
                 device = dev
         if device is None:
@@ -169,16 +177,6 @@ class KasaSim(object):
         except:
             return self.returnError(-10100)
         responseData = device.passthrough(requestData)
-        # for module, members in requestData_dict.items():
-        #     if module not in self.MODULES:
-        #         responseData[module] = {"err_code":-1,"err_msg":"module not support"}
-        #     else:
-        #         responseData[module] = dict()
-        #         for member, values in members.items():
-        #             if member not in self.MODULES[module]:
-        #                 responseData[module][member] = {"err_code":-2,"err_msg":"member not support"}
-        #             else:
-        #                 responseData[module][member] = getattr(device, member)(values)
         return self.returnResponse(0,{"responseData":json.dumps(responseData,separators=(',', ':'))})
 
 
@@ -204,4 +202,4 @@ if __name__ == '__main__':
         'server.socket_port': SOCKET_PORT,
         'server.socket_host': SOCKET_HOST}
     )
-    cherrypy.quickstart(KasaSim(), '/', conf)
+    cherrypy.quickstart(KasaSim(ACCOUNTS,devices), '/', conf)
